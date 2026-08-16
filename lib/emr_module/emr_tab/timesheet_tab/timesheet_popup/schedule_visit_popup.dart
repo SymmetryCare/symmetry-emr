@@ -1,0 +1,235 @@
+import 'package:flutter/material.dart';
+
+import '../../../../../../app/resources/color.dart';
+import '../../../../../../app/resources/value_manager.dart';
+import '../../../../../../app/services/api/managers/emr_module_manager/timesheet_tab_manager/timesheet_tab_manager.dart';
+import '../../../../../../data/api_data/emr_module_data/timesheet_tab_data/timesheet_data.dart';
+import '../../popup_const_emr.dart';
+
+class ScheduledVisitsPopup extends StatefulWidget {
+  final String date;
+
+  const ScheduledVisitsPopup({super.key, required this.date});
+
+  @override
+  State<ScheduledVisitsPopup> createState() => _ScheduledVisitsPopupState();
+}
+
+class _ScheduledVisitsPopupState extends State<ScheduledVisitsPopup> {
+  bool _isLoading = true;
+  List<ScheduledVisitItemData> _visits = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final data = await getScheduledVisitsPopup(context, widget.date);
+    setState(() {
+      _visits = data?.visits ?? [];
+      _isLoading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DialogueTemplateNoButtonsColoum(
+      width: 420,
+      height: 350,
+      title: 'Scheduled Visits',
+      body: [
+        if (_isLoading)
+          const SizedBox(
+            height: 200,
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (_visits.isEmpty)
+          const SizedBox(
+            height: 200,
+            child: Center(
+              child: Text(
+                'No scheduled visits',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ),
+          )
+        else
+          SizedBox(
+            height: 260,
+            child: ScrollConfiguration(
+              behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+              child: ListView.builder(
+                padding: const EdgeInsets.only(bottom: AppPadding.p16),
+                itemCount: _visits.length,
+                itemBuilder: (_, i) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AppPadding.p10),
+                  child: _VisitRow(item: _visits[i], visitNumber: i + 1),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ── Single visit row ──────────────────────────────────────────────────────────
+
+class _VisitRow extends StatelessWidget {
+  final ScheduledVisitItemData item;
+  final int visitNumber;
+
+  const _VisitRow({required this.item, required this.visitNumber});
+
+  String get _initials {
+    final parts = item.patientName.trim().split(' ');
+    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    if (parts.isNotEmpty && parts[0].isNotEmpty) return parts[0][0].toUpperCase();
+    return '?';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade300, width: 0.8),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+
+          // ── Colored left border indicator ─────────────────────────────────
+          Container(
+            width: 18,
+            height: 80,
+            padding: EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: ColorManager.incidentskin,
+              borderRadius: BorderRadius.circular(2),
+            ),
+            alignment: Alignment.center,
+            child: RotatedBox(
+              quarterTurns: 3,
+              child: Text(
+                item.visitTypeName,
+                style: const TextStyle(
+                  fontSize: 7,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  letterSpacing: 0.8,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+
+          // ── Avatar ────────────────────────────────────────────────────────
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: ColorManager.circleColor,
+            child: Text(
+              _initials,
+              style: TextStyle(
+                color: ColorManager.mediumgrey,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+
+          // ── Visit number + name + visit type ──────────────────────────────
+          Expanded(
+            flex: 3,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Visit $visitNumber',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  item.patientName,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  item.visitTypeName,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Amount ────────────────────────────────────────────────────────
+          Expanded(
+            flex: 2,
+            child: Text(
+              item.visitCharge != null
+                  ? '\$${item.visitCharge!.toStringAsFixed(2)}'
+                  : '--',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: Colors.blue.shade600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // ── Date + Time ───────────────────────────────────────────────────
+          Expanded(
+            flex: 3,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.calendar_today,
+                        size: 11, color: Colors.blue.shade400),
+                    const SizedBox(width: 4),
+                    Text(
+                      item.visitDate,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.blue.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${item.timeFrom}–${item.timeTo}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.blue.shade600,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

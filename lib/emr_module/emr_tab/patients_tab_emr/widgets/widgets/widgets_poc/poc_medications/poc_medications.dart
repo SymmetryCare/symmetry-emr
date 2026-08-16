@@ -1,0 +1,549 @@
+import 'package:flutter/material.dart';
+import 'package:prohealth/presentation/screens/emr_module/emr_tab/patients_tab_emr/widgets/patient_chart_tabs/subtabs_popup/add_medication_popup.dart';
+import 'package:prohealth/presentation/screens/emr_module/emr_tab/patients_tab_emr/widgets/patient_chart_tabs/subtabs_popup/discontinued_medication_popup.dart';
+import 'package:prohealth/presentation/screens/emr_module/emr_tab/patients_tab_emr/widgets/patient_chart_tabs/subtabs_popup/drug_interaction_popup.dart';
+import 'package:prohealth/presentation/screens/emr_module/emr_tab/patients_tab_emr/widgets/patient_chart_tabs/subtabs_popup/edit_allergies_popup.dart';
+import 'package:prohealth/presentation/screens/emr_module/emr_tab/patients_tab_emr/widgets/patient_chart_tabs/subtabs_popup/medication_tablet_popup.dart';
+import '../../../../../../../../../app/resources/color.dart';
+import '../../../../../../../../../app/resources/common_resources/emr_theme_const.dart';
+import '../../../../../../../../../app/resources/font_manager.dart';
+import '../../../../../../../../../app/resources/value_manager.dart';
+
+enum MedicationTag { none, new_, starting, changing, pin, highRisk }
+
+class MedicationItem {
+  final String name;
+  final String dose;
+  final String frequency;
+  final String route;
+  final String specialInstructions;
+  final MedicationTag tag;
+  final bool isHighRisk;
+
+  const MedicationItem({
+    required this.name,
+    required this.dose,
+    required this.frequency,
+    required this.route,
+    required this.specialInstructions,
+    this.tag = MedicationTag.none,
+    this.isHighRisk = false,
+  });
+}
+
+class PocMedications extends StatefulWidget {
+  const PocMedications({super.key});
+
+  @override
+  State<PocMedications> createState() => _PocMedicationsState();
+}
+
+class _PocMedicationsState extends State<PocMedications> {
+  static const List<MedicationItem> _medications = [
+    MedicationItem(
+      name: 'Lisinopril 10 mg tablet',
+      dose: '10 mg',
+      frequency: 'Daily',
+      route: 'Oral',
+      specialInstructions: 'n/a',
+      tag: MedicationTag.new_,
+    ),
+    MedicationItem(
+      name: 'Metformin 500 mg tablet',
+      dose: '500 mg',
+      frequency: 'Twice daily with food',
+      route: 'Oral',
+      specialInstructions: 'n/a',
+      tag: MedicationTag.new_,
+    ),
+    MedicationItem(
+      name: 'Atorvastatin 20 mg tablet',
+      dose: '20 mg',
+      frequency: 'Daily at bedtime',
+      route: 'Oral',
+      specialInstructions: 'n/a',
+      tag: MedicationTag.starting,
+    ),
+    MedicationItem(
+      name: 'Insulin Glargine (Lantus) 100 units/mL',
+      dose: '20 units',
+      frequency: 'Daily at bedtime',
+      route: 'Subcutaneous',
+      specialInstructions:
+      'Rotate injection sites, check fasting blood glucose daily, report BG <70 mg/dL or >180 mg/dL',
+      tag: MedicationTag.starting,
+      isHighRisk: true,
+    ),
+    MedicationItem(
+      name: 'Apixaban (Eliquis) 5 mg tablet',
+      dose: '5 mg',
+      frequency: 'Twice Daily',
+      route: 'Oral',
+      specialInstructions:
+      'Report bruising, bleeding gums, black/tarry stools, avoid NSAIDs unless approved',
+      tag: MedicationTag.changing,
+      isHighRisk: true,
+    ),
+    MedicationItem(
+      name: 'Hydrocodone/Acetaminophen 5 mg/325 mg tablet',
+      dose: '1 tablet',
+      frequency: 'Every 6 hours as needed',
+      route: 'Oral',
+      specialInstructions:
+      'Pain >5/10, do not exceed 4000 mg acetaminophen/day',
+      tag: MedicationTag.pin,
+      isHighRisk: true,
+    ),
+    MedicationItem(
+      name: 'Vitamin D3 1000 IU tablet  ',
+      dose: '1000 IU',
+      frequency: 'Daily',
+      route: 'Oral',
+      specialInstructions: 'n/a',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: ColorManager.white,
+      margin: const EdgeInsets.only(right: AppPadding.p20),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(AppPadding.p20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Text(
+              'Medications',
+              style: PatientsFormsHeadData.customTextStyle(context),
+            ),
+            const SizedBox(height: AppSize.s4),
+            Text(
+              'Updated at 04/08/2024 | 8:55AM',
+              style: PatientsFormsSubData.customTextStyle(context),
+            ),
+            const SizedBox(height: AppSize.s16),
+
+            // Allergies + Action buttons row
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Column 1: Allergies
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Allergies & Adverse Reactions',
+                            style: TextStyle(
+                              fontSize: FontSize.s12,
+                              fontWeight: FontWeight.w600,
+                              color: ColorManager.darkgrey,
+                            ),
+                          ),
+                          const SizedBox(width: AppSize.s8),
+                          InkWell(
+                            onTap: () {
+                              showDialog(
+                                context: context,
+                                builder: (_) => const EditAllergiesPopup(),
+                              );
+                            },
+                            child: Icon(Icons.edit_outlined,
+                                size: AppSize.s14,
+                                color: ColorManager.blueprime),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSize.s4),
+                      Text(
+                        '• Penicillin – rash\n• No known food or latex allergies',
+                        style: TextStyle(
+                            fontSize: FontSize.s11, color: ColorManager.grey),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(width: AppSize.s16),
+
+                // Column 2: Action buttons + icons
+                Expanded(
+                  flex: 2,
+                  child: Row(
+                    children: [
+                      _ActionButton(
+                        label: 'Add Medications',
+                        onTap: () {
+                          showDialog(
+                            context: context,
+                            builder: (_) => const AddMedicationPopup(),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: AppSize.s16),
+                      _ActionButton(
+                        label: 'Discontinued Medications',
+                        onTap: () {
+                          showDialog(
+                            context: context,
+                            builder: (_) =>
+                            const DiscontinuedMedicationPopup(),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: AppSize.s16),
+                      _ActionButton(
+                        label: 'Check for Drug Interactions',
+                        onTap: () {
+                          showDialog(
+                            context: context,
+                            builder: (_) => const DrugInteractionPopup(),
+                          );
+                        },
+                      ),
+                      const Spacer(),
+                      Icon(Icons.send_outlined,
+                          size: AppSize.s18, color: ColorManager.grey),
+                      const SizedBox(width: AppSize.s12),
+                      Icon(Icons.print_outlined,
+                          size: AppSize.s18, color: ColorManager.grey),
+                      const SizedBox(width: AppSize.s12),
+                      Icon(Icons.download_outlined,
+                          size: AppSize.s18, color: ColorManager.grey),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSize.s16),
+
+            // Table
+            _MedicationsTable(medications: _medications),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Action Button ─────────────────────────────────────────────────────────────
+class _ActionButton extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  const _ActionButton({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: FontSize.s12,
+          fontWeight: FontWeight.w600,
+          color: ColorManager.blueprime,
+          decoration: TextDecoration.underline,
+          decorationColor: ColorManager.blueprime,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Medications Table ─────────────────────────────────────────────────────────
+class _MedicationsTable extends StatelessWidget {
+  final List<MedicationItem> medications;
+  const _MedicationsTable({required this.medications});
+
+  static Widget _vLine() => Container(width: 1, color: Color(0xFFE0E0E0));
+
+  static Widget _cell({required Widget child, int flex = 1}) => Expanded(
+    flex: flex,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppPadding.p8, vertical: AppPadding.p10),
+      child: child,
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Color(0xFFE0E0E0), width: 1),
+        borderRadius: BorderRadius.circular(AppSize.s4),
+      ),
+      child: Column(
+        children: [
+          // Table header
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5F5F5),
+              border: Border(
+                  bottom: BorderSide(color: Color(0xFFE0E0E0), width: 1)),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(AppSize.s4),
+                topRight: Radius.circular(AppSize.s4),
+              ),
+            ),
+            child: IntrinsicHeight(
+              child: Row(
+                children: [
+                  const SizedBox(width: AppSize.s30),
+                  _cell(flex: 3, child: Text('Medication', style: _headerStyle())),
+                  _vLine(),
+                  _cell(flex: 2, child: Text('Dose', style: _headerStyle())),
+                  _vLine(),
+                  _cell(flex: 2, child: Text('Frequency', style: _headerStyle())),
+                  _vLine(),
+                  _cell(flex: 2, child: Text('Route', style: _headerStyle())),
+                  _vLine(),
+                  _cell(flex: 3, child: Text('Special Instructions', style: _headerStyle())),
+                  _vLine(),
+                  const SizedBox(width: AppSize.s32),
+                ],
+              ),
+            ),
+          ),
+
+          // Table rows
+          ...medications.map((med) => _MedicationRow(item: med)),
+        ],
+      ),
+    );
+  }
+
+  TextStyle _headerStyle() => TextStyle(
+    fontSize: FontSize.s11,
+    fontWeight: FontWeight.w700,
+    color: ColorManager.darkgrey,
+  );
+}
+
+// ── Medication Row ────────────────────────────────────────────────────────────
+class _MedicationRow extends StatelessWidget {
+  final MedicationItem item;
+  const _MedicationRow({required this.item});
+
+  static Widget _vLine() => Container(width: 1, color: Color(0xFFE0E0E0));
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        border:
+        Border(bottom: BorderSide(color: Color(0xFFE0E0E0), width: 1)),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Side tag bar
+            Padding(
+              padding: const EdgeInsets.only(
+                  left: AppPadding.p5,
+                  top: AppPadding.p6,
+                  bottom: AppPadding.p6),
+              child: _TagBar(tag: item.tag),
+            ),
+            const SizedBox(width: AppSize.s8),
+
+            // Medication name + High Risk badge
+            Expanded(
+              flex: 3,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppPadding.p8, vertical: AppPadding.p8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (item.isHighRisk) ...[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [_HighRiskBadge()],
+                      ),
+                      const SizedBox(height: AppSize.s4),
+                    ],
+                    InkWell(
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (_) => MedicationTabletPopup(),
+                        );
+                      },
+                      child: Text(
+                        item.name,
+                        style: TextStyle(
+                          fontSize: FontSize.s12,
+                          color: ColorManager.bluebottom,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            _vLine(),
+
+            // Dose
+            Expanded(
+              flex: 2,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppPadding.p8, vertical: AppPadding.p8),
+                child: Text(item.dose,
+                    style: TextStyle(
+                        fontSize: FontSize.s12, color: ColorManager.grey)),
+              ),
+            ),
+
+            _vLine(),
+
+            // Frequency
+            Expanded(
+              flex: 2,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppPadding.p8, vertical: AppPadding.p8),
+                child: Text(item.frequency,
+                    style: TextStyle(
+                        fontSize: FontSize.s12, color: ColorManager.grey)),
+              ),
+            ),
+
+            _vLine(),
+
+            // Route
+            Expanded(
+              flex: 2,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppPadding.p8, vertical: AppPadding.p8),
+                child: Text(item.route,
+                    style: TextStyle(
+                        fontSize: FontSize.s12, color: ColorManager.grey)),
+              ),
+            ),
+
+            _vLine(),
+
+            // Special Instructions
+            Expanded(
+              flex: 3,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppPadding.p8, vertical: AppPadding.p8),
+                child: Text(
+                  item.specialInstructions,
+                  style: TextStyle(
+                      fontSize: FontSize.s11, color: ColorManager.grey),
+                ),
+              ),
+            ),
+
+            _vLine(),
+
+            // Info icon
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppPadding.p8, vertical: AppPadding.p8),
+              child: Icon(Icons.info_outline,
+                  size: AppSize.s16, color: ColorManager.blueprime),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Tag Bar (colored left side) ───────────────────────────────────────────────
+class _TagBar extends StatelessWidget {
+  final MedicationTag tag;
+  const _TagBar({required this.tag});
+
+  Color get _color {
+    switch (tag) {
+      case MedicationTag.new_:
+        return ColorManager.green;
+      case MedicationTag.starting:
+        return Colors.orange;
+      case MedicationTag.changing:
+        return Colors.blue;
+      case MedicationTag.pin:
+        return Colors.purple;
+      default:
+        return Colors.transparent;
+    }
+  }
+
+  String get _label {
+    switch (tag) {
+      case MedicationTag.new_:
+        return 'New';
+      case MedicationTag.starting:
+        return 'Starting';
+      case MedicationTag.changing:
+        return 'Changing';
+      case MedicationTag.pin:
+        return 'Pin';
+      default:
+        return '';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (tag == MedicationTag.none) return const SizedBox(width: AppSize.s6);
+    return Container(
+      width: AppSize.s15,
+      height: AppSize.s50,
+      decoration: BoxDecoration(
+        color: _color,
+        borderRadius: BorderRadius.circular(AppSize.s2),
+      ),
+      alignment: Alignment.center,
+      child: RotatedBox(
+        quarterTurns: 3,
+        child: Text(
+          _label,
+          style: TextStyle(
+            fontSize: FontSize.s9,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── High Risk Badge ───────────────────────────────────────────────────────────
+class _HighRiskBadge extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding:
+      const EdgeInsets.symmetric(horizontal: AppPadding.p6, vertical: 2),
+      decoration: BoxDecoration(
+        color: ColorManager.red,
+        borderRadius: BorderRadius.circular(AppSize.s4),
+      ),
+      child: Text(
+        'High Risk',
+        style: TextStyle(
+          fontSize: FontSize.s9,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+}
