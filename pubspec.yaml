@@ -1,15 +1,115 @@
 name: symmetry_emr
-description: EMR POC module
-publish_to: "none"
-version: 0.1.0
+description: "Symmetry EMR module — Home Health EMR for clinicians: dashboard, calendar, patients, timesheet, OASIS forms."
+publish_to: 'none'
+
+version: 1.0.0
+
 environment:
-  sdk: ">=3.0.0 <4.0.0"
-  flutter: ">=3.0.0"
+  sdk: '>=3.2.3 <4.0.0'
+
 dependencies:
   flutter:
     sdk: flutter
-  # Shared platform packages (wire once repos exist):
-  # symmetry_ui_kit:  { git: { url: https://github.com/SymmetryCare/symmetry-ui-kit.git } }
-  # symmetry_contracts: { git: { url: https://github.com/SymmetryCare/symmetry-contracts.git } }
+
+  agora_rtc_engine: ^6.3.2
+  animated_custom_dropdown: ^3.1.1
+  app_links: ^6.1.4
+  auto_size_text: ^3.0.0
+  cached_network_image: ^3.4.1
+  calendar_view: ^1.2.0
+  camera: ^0.11.0+2
+  camera_web: ^0.3.3+1
+  cupertino_icons: ^1.0.2
+  custom_tooltip: ^1.0.1
+  dio: ^5.7.0
+  dotted_border: ^2.1.0
+  dropdown_button2: ^2.3.9
+  elegant_notification: ^2.5.1
+  emoji_picker_flutter: ^4.4.0
+  encrypt: ^5.0.3
+  file_picker: ^8.1.3
+  file_saver: ^0.4.0
+  firebase_core: ^3.6.0
+  firebase_messaging: ^15.1.3
+  fl_chart: ^0.70.1
+  flutter_dotenv: ^6.0.1
+  flutter_html: ^3.0.0-beta.2
+  flutter_pdfview: ^1.3.3
+  flutter_quill: ^11.5.0
+  flutter_screenutil: ^5.9.3
+  flutter_svg: ^2.0.10+1
+  flutter_switch: ^0.3.2
+  flutter_tts: ^4.2.3
+  font_awesome_flutter: 11.0.0
+  geocoding: ^3.0.0
+  geolocator: ^11.0.0
+  get: ^4.6.6
+  google_fonts: ^6.2.1
+  google_maps_flutter: ^2.9.0
+  google_maps_flutter_web: ^0.5.10
+  googleapis: ^13.0.0
+  html: ^0.15.4
+  http: ^1.2.2
+  image_picker: ^1.1.2
+  intl: ^0.20.2
+  intl_phone_number_input: ^0.7.4
+  just_audio: ^0.9.42
+  mask_text_input_formatter: ^2.9.0
+  mime: ^2.0.0
+  open_file: ^3.5.10
+  open_filex: ^4.7.0
+  path: ^1.9.0
+  path_provider: ^2.0.9
+  pdf: ^3.11.1
+  pdfx: ^2.9.2
+  pointer_interceptor: ^0.10.1+1
+  printing: ^5.13.1
+  provider: ^6.1.2
+  record: ^5.1.2
+  shared_preferences: ^2.3.2
+  shimmer: ^3.0.0
+  signature: ^5.0.0
+  syncfusion_flutter_charts: ^28.2.4
+  syncfusion_flutter_pdf: ^28.2.4
+  universal_io: ^2.2.2
+  url_launcher: ^6.3.0
+  visibility_detector: ^0.4.0+2
+  vsc_quill_delta_to_html: ^1.0.5
+  webview_flutter: ^4.8.0
+
+# Force consistent versions across conflicting transitive dependencies
+dependency_overrides:
+  # flutter_html 3.0.0 calls query_selector.matches(), removed in html 0.15.7.
+  html: 0.15.6
+  intl: ^0.20.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
 flutter:
   uses-material-design: true
+
+  assets:
+    - config/emr.env
+    - assets/png/
+    - assets/png/bedge_icon/
+    - assets/png/pain_review/
+    - assets/svg/
+    - images/
+    - images/clinical/
+    - images/coder/
+    - images/communication/
+    - images/communication/call/
+    - images/communication/chat/
+    - images/communication/efax/
+    - images/communication/email/
+    - images/emr_clinician/
+    - images/emr_clinician/patients_tab/
+    - images/error/
+    - images/hh_emr/
+    - images/qa_coordinator/
+    - images/sm/
+    - images/sm/sm_refferal/
+    - images/tab_images/

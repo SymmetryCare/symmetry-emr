@@ -1,0 +1,797 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:provider/provider.dart';
+
+import 'package:symmetry_emr/app/resources/color.dart';
+import 'package:symmetry_emr/app/resources/font_manager.dart';
+import 'package:symmetry_emr/modules/emr/providers/hh_emr/visit_details_provider.dart';
+import 'package:symmetry_emr/app/resources/value_manager.dart';
+import 'package:symmetry_emr/modules/emr/data/api/managers/emr_module_manager/emr_dashboard_tab_manager/dashboard_notification_tab.dart';
+import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/legacy/app_bar/app_bar.dart';
+import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/hr/manage/widgets/bottom_row.dart';
+import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/hr/manage/widgets/custom_icon_button_constant.dart';
+import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/qa_coordinator/qa_dashboard/qa_deskstop_screen.dart';
+import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/qa_coordinator/qa_myTask/qa_tab_bar_screens/common_widgets/communication_chat_module.dart';
+import 'package:symmetry_emr/modules/emr/presentation/screens/responsive_screen/responsive_screen_emr.dart';
+import 'package:symmetry_emr/modules/emr/presentation/screens/emr_tab/calender_emr_tab/emr_calender_screen.dart';
+import 'package:symmetry_emr/modules/emr/presentation/screens/emr_tab/calender_emr_tab/visit_details_screen.dart';
+import 'package:symmetry_emr/modules/emr/presentation/screens/emr_tab/emr_dashbord/emr_dashboard_screen.dart';
+import 'package:symmetry_emr/modules/emr/presentation/screens/emr_tab/patients_tab_emr/widgets/emr_patient_details_screen.dart';
+import 'package:symmetry_emr/modules/emr/presentation/screens/emr_tab/patients_tab_emr/widgets/widgets/patients_protocol_screen.dart';
+import 'package:symmetry_emr/modules/emr/presentation/screens/emr_tab/patients_tab_emr/widgets/widgets/patients_alerts_screen.dart';
+import 'package:symmetry_emr/modules/emr/presentation/screens/emr_tab/patients_tab_emr/widgets/widgets/plan_of_care.dart';
+import 'package:symmetry_emr/modules/emr/presentation/screens/emr_tab/patients_tab_emr/widgets/widgets/widgets_poc/poc_frequencies/poc_frequency_detail_screen.dart';
+import 'package:symmetry_emr/modules/emr/presentation/screens/emr_tab/patients_tab_emr/emr_patients_home_screen.dart';
+import 'package:symmetry_emr/modules/emr/presentation/screens/emr_tab/timesheet_tab/timesheet_screen.dart';
+import 'package:symmetry_emr/modules/emr/presentation/screens/emr_tab/emr_dashbord/dashboard_left_widget_components/full_map_screen_hhemr.dart';
+import 'package:symmetry_emr/modules/emr/presentation/screens/emr_tab/emr_dashbord/dashboard_middle_widget_component/widgets/schedule_visit_details.dart'
+    hide VisitDetailsScreen;
+import 'package:symmetry_emr/modules/emr/presentation/screens/emr_tab/emr_dashbord/emr_notification_panel.dart';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Self-contained notification badge
+// ─────────────────────────────────────────────────────────────────────────────
+class _NotifBadge extends StatefulWidget {
+  final VoidCallback onTap;
+  const _NotifBadge({super.key, required this.onTap});
+
+  @override
+  State<_NotifBadge> createState() => _NotifBadgeState();
+}
+
+class _NotifBadgeState extends State<_NotifBadge> {
+  bool _hasUnread = false;
+  int _lastSeenId = 0;
+  bool _firstCheck = true;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) => _check());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _check() async {
+    try {
+      final data = await getNotificationData(context);
+      if (!mounted || data.isEmpty) return;
+      final newestId = data.first.notificationId;
+      setState(() {
+        if (_firstCheck) {
+          _lastSeenId = newestId;
+          _firstCheck = false;
+        } else {
+          _hasUnread = newestId > _lastSeenId;
+        }
+      });
+    } catch (_) {}
+  }
+
+  Future<void> markSeen() async {
+    try {
+      final data = await getNotificationData(context);
+      if (!mounted) return;
+      setState(() {
+        if (data.isNotEmpty) _lastSeenId = data.first.notificationId;
+        _hasUnread = false;
+      });
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Icon(Icons.notifications_none_rounded, color: ColorManager.redDark),
+        if (_hasUnread)
+          Positioned(
+            top: -2,
+            right: 0,
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: ColorManager.redDark,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 1),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tab bar buttons — responsive: full row ≥ 1200, hamburger < 1200
+// ─────────────────────────────────────────────────────────────────────────────
+class _TabButtons extends StatefulWidget {
+  final ButtonSelectionEMRController tabCtrl;
+  final void Function(int) jumpTo;
+  final GlobalKey<_NotifBadgeState> badgeKey;
+  final VoidCallback onBellTap;
+  final double screenWidth;
+  // Hamburger callbacks — managed in parent (EMRDesktopScreen)
+  final GlobalKey menuButtonKey;
+  final VoidCallback onMenuTap;
+
+  static const List<String> _tabs = [
+    'Dashboard',
+    'Calendar',
+    'Patients',
+    'Timesheet',
+  ];
+
+  const _TabButtons({
+    required this.tabCtrl,
+    required this.jumpTo,
+    required this.badgeKey,
+    required this.onBellTap,
+    required this.screenWidth,
+    required this.menuButtonKey,
+    required this.onMenuTap,
+  });
+
+  @override
+  State<_TabButtons> createState() => _TabButtonsState();
+}
+
+class _TabButtonsState extends State<_TabButtons> {
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final selected = widget.tabCtrl.selectedIndex.value;
+
+      if (widget.screenWidth >= 1200) {
+        // ── Full tab row ────────────────────────────────────────────
+        return Row(
+          children: [
+            const SizedBox(width: 16),
+            Expanded(
+              child: CustomTitleButtonemr(
+                height: AppSize.s30,
+                width: AppSize.s100,
+                text: 'Dashboard',
+                onPressed: () => widget.jumpTo(0),
+                isSelected: selected == 0,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: CustomTitleButtonemr(
+                height: AppSize.s30,
+                width: AppSize.s100,
+                text: 'Calendar',
+                onPressed: () => widget.jumpTo(1),
+                isSelected: selected == 1,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: CustomTitleButtonemr(
+                height: AppSize.s30,
+                width: AppSize.s100,
+                text: 'Patients',
+                onPressed: () => widget.jumpTo(2),
+                isSelected: selected == 2,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: CustomTitleButtonemr(
+                height: AppSize.s30,
+                width: AppSize.s100,
+                text: 'Timesheet',
+                onPressed: () => widget.jumpTo(3),
+                isSelected: selected == 3,
+              ),
+            ),
+            const SizedBox(width: 16),
+            AppBarIconWithImage(
+              iconImage: "images/sm/contact_sv.svg",
+              onPressed: () => widget.jumpTo(4),
+            ),
+            const SizedBox(width: 16),
+            InkWell(
+              splashColor: Colors.transparent,
+              hoverColor: Colors.transparent,
+              focusColor: Colors.transparent,
+              onTap: widget.onBellTap,
+              child: _NotifBadge(key: widget.badgeKey, onTap: widget.onBellTap),
+            ),
+          ],
+        );
+      } else {
+        // ── Hamburger + active tab name ─────────────────────────────
+        // index 4 = chat (contact icon), treat as no label
+        final tabLabel = selected < _TabButtons._tabs.length ? _TabButtons._tabs[selected] : 'Chat';
+        return Row(
+          children: [
+            const SizedBox(width: 8),
+            GestureDetector(
+              key: widget.menuButtonKey,
+              onTap: widget.onMenuTap,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppPadding.p10,
+                  vertical: AppPadding.p6,
+                ),
+                decoration: BoxDecoration(
+                  border: Border.all(color: const Color(0xFFDDDDDD)),
+                  borderRadius: BorderRadius.circular(AppSize.s6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.menu, size: AppSize.s18, color: ColorManager.darkgrey),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Menu',
+                      style: TextStyle(
+                        fontSize: FontSize.s13,
+                        fontWeight: FontWeight.w600,
+                        color: ColorManager.darkgrey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                '— $tabLabel',
+                style: TextStyle(
+                  fontSize: FontSize.s13,
+                  fontWeight: FontWeight.w700,
+                  color: ColorManager.blueprime,
+                ),
+              ),
+            ),
+            const Spacer(),
+            InkWell(
+              splashColor: Colors.transparent,
+              hoverColor: Colors.transparent,
+              focusColor: Colors.transparent,
+              onTap: widget.onBellTap,
+              child: _NotifBadge(key: widget.badgeKey, onTap: widget.onBellTap),
+            ),
+            const SizedBox(width: 8),
+          ],
+        );
+      }
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PageView body
+// ─────────────────────────────────────────────────────────────────────────────
+class _PageBody extends StatelessWidget {
+  final PageController pageController;
+  final ButtonSelectionEMRController tabCtrl;
+
+  const _PageBody({
+    required this.pageController,
+    required this.tabCtrl,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PageView(
+      controller: pageController,
+      physics: const NeverScrollableScrollPhysics(),
+      onPageChanged: (i) => tabCtrl.selectButton(i),
+      children: const [
+        _KeepAlive(child: EMRDashboardScreen()),
+        _KeepAlive(child: EMRCalendarScreen()),
+        _KeepAlive(child: EMRPatientsHomeScreen()),
+        _KeepAlive(child: TimesheetScreen()),
+      ],
+    );
+  }
+}
+
+class _KeepAlive extends StatefulWidget {
+  final Widget child;
+  const _KeepAlive({required this.child});
+
+  @override
+  State<_KeepAlive> createState() => _KeepAliveState();
+}
+
+class _KeepAliveState extends State<_KeepAlive>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Overlay state value object
+// ─────────────────────────────────────────────────────────────────────────────
+class _OverlayState {
+  final bool isViewingVisit;
+  final bool isViewingMap;
+  final bool isScheduleVisit;
+  final bool isViewingPatientDetail;
+  final bool isViewingProtocol;
+  final bool isViewingAlerts;
+  final bool isViewingPlanOfCare;
+  final bool isViewingFrequencyDetail;
+
+  const _OverlayState({
+    required this.isViewingVisit,
+    required this.isViewingMap,
+    required this.isScheduleVisit,
+    required this.isViewingPatientDetail,
+    required this.isViewingProtocol,
+    required this.isViewingAlerts,
+    required this.isViewingPlanOfCare,
+    required this.isViewingFrequencyDetail,
+  });
+
+  bool get any =>
+      isViewingVisit ||
+          isViewingMap ||
+          isScheduleVisit ||
+          isViewingPatientDetail ||
+          isViewingProtocol ||
+          isViewingAlerts ||
+          isViewingPlanOfCare ||
+          isViewingFrequencyDetail;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _OverlayState &&
+          isViewingVisit == other.isViewingVisit &&
+          isViewingMap == other.isViewingMap &&
+          isScheduleVisit == other.isScheduleVisit &&
+          isViewingPatientDetail == other.isViewingPatientDetail &&
+          isViewingProtocol == other.isViewingProtocol &&
+          isViewingAlerts == other.isViewingAlerts &&
+          isViewingPlanOfCare == other.isViewingPlanOfCare &&
+          isViewingFrequencyDetail == other.isViewingFrequencyDetail;
+
+  @override
+  int get hashCode => Object.hash(
+    isViewingVisit,
+    isViewingMap,
+    isScheduleVisit,
+    isViewingPatientDetail,
+    isViewingProtocol,
+    isViewingAlerts,
+    isViewingPlanOfCare,
+    isViewingFrequencyDetail,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main desktop screen
+// ─────────────────────────────────────────────────────────────────────────────
+class EMRDesktopScreen extends StatefulWidget {
+  final double screenWidth;
+  const EMRDesktopScreen({super.key, required this.screenWidth});
+
+  @override
+  State<EMRDesktopScreen> createState() => _EMRDesktopScreenState();
+}
+
+class _EMRDesktopScreenState extends State<EMRDesktopScreen> {
+  final PageController _pageController = PageController();
+  final ButtonSelectionEMRController _tabCtrl =
+  Get.put(ButtonSelectionEMRController());
+  final GlobalKey<_NotifBadgeState> _badgeKey = GlobalKey<_NotifBadgeState>();
+
+  // Hamburger menu overlay
+  OverlayEntry? _menuOverlay;
+  final GlobalKey _menuButtonKey = GlobalKey();
+
+  static const List<String> _tabLabels = [
+    'Dashboard',
+    'Calendar',
+    'Patients',
+    'Timesheet',
+  ];
+
+  final ValueNotifier<bool> _showChat         = ValueNotifier(false);
+  final ValueNotifier<bool> _showNotification = ValueNotifier(false);
+  final ValueNotifier<int>  _notifPanelKey    = ValueNotifier(0);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<EMRNavigationController>().reset();
+    });
+  }
+
+  @override
+  void dispose() {
+    _closeMenu();
+    _pageController.dispose();
+    _showChat.dispose();
+    _showNotification.dispose();
+    _notifPanelKey.dispose();
+    super.dispose();
+  }
+
+  void _jumpTo(int index) {
+    context.read<FilterDrawerProvider>().clearFilters();
+    _tabCtrl.selectButton(index);
+    if (index == 4) {
+      _showChat.value = true;
+    } else {
+      _showChat.value = false;
+      _pageController.jumpToPage(index);
+    }
+  }
+
+  void _toggleNotification() {
+    final opening = !_showNotification.value;
+    if (opening) {
+      _showChat.value = false;
+      _notifPanelKey.value++;
+    }
+    _showNotification.value = opening;
+    if (opening) _badgeKey.currentState?.markSeen();
+  }
+
+  // ── Hamburger menu ──────────────────────────────────────────────────────
+  void _openMenu() {
+    if (_menuOverlay != null) {
+      _closeMenu();
+      return;
+    }
+
+    final renderBox =
+    _menuButtonKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+
+    final offset = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+    final selected = _tabCtrl.selectedIndex.value;
+
+    _menuOverlay = OverlayEntry(
+      builder: (_) => Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _closeMenu,
+              child: Container(color: Colors.transparent),
+            ),
+          ),
+          Positioned(
+            left: offset.dx,
+            top: offset.dy + size.height + 4,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: 200,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(AppSize.s8),
+                  border: Border.all(color: const Color(0xFFEEEEEE)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Regular tabs (0–3)
+                    ...List.generate(_tabLabels.length, (i) {
+                      final isSelected = selected == i;
+                      return InkWell(
+                        onTap: () {
+                          _jumpTo(i);
+                          _closeMenu();
+                        },
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppPadding.p16,
+                            vertical: AppPadding.p10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? ColorManager.blueprime.withOpacity(0.08)
+                                : Colors.transparent,
+                            borderRadius: i == 0
+                                ? const BorderRadius.vertical(
+                                top: Radius.circular(AppSize.s8))
+                                : BorderRadius.zero,
+                          ),
+                          child: Text(
+                            _tabLabels[i],
+                            style: TextStyle(
+                              fontSize: FontSize.s13,
+                              fontWeight: isSelected
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: isSelected
+                                  ? ColorManager.blueprime
+                                  : ColorManager.darkgrey,
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                    // Chat item (index 4)
+                    InkWell(
+                      onTap: () {
+                        _jumpTo(4);
+                        _closeMenu();
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppPadding.p16,
+                          vertical: AppPadding.p10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: selected == 4
+                              ? ColorManager.blueprime.withOpacity(0.08)
+                              : Colors.transparent,
+                          borderRadius: const BorderRadius.vertical(
+                            bottom: Radius.circular(AppSize.s8),
+                          ),
+                        ),
+                        child: Text(
+                          'Chat',
+                          style: TextStyle(
+                            fontSize: FontSize.s13,
+                            fontWeight: selected == 4
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            color: selected == 4
+                                ? ColorManager.blueprime
+                                : ColorManager.darkgrey,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    Overlay.of(context).insert(_menuOverlay!);
+  }
+
+  void _closeMenu() {
+    _menuOverlay?.remove();
+    _menuOverlay = null;
+  }
+
+  static bool _b(bool? v) => v ?? false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Selector<EMRNavigationController, _OverlayState>(
+      selector: (_, nav) => _OverlayState(
+        isViewingVisit:           _b(nav.isViewingVisit),
+        isViewingMap:             _b(nav.isViewingMap),
+        isScheduleVisit:          _b(nav.isScheduleVisit),
+        isViewingPatientDetail:   _b(nav.isViewingPatientDetail),
+        isViewingProtocol:        _b(nav.isViewingProtocol),
+        isViewingAlerts:          _b(nav.isViewingAlerts),
+        isViewingPlanOfCare:      _b(nav.isViewingPlanOfCare),
+        isViewingFrequencyDetail: _b(nav.isViewingFrequencyDetail),
+      ),
+      builder: (context, overlay, _) {
+        final anyOverlay = overlay.any;
+        final nav = context.read<EMRNavigationController>();
+
+        return WillPopScope(
+          onWillPop: () async {
+            if (_showNotification.value) {
+              _showNotification.value = false;
+              return false;
+            }
+            if (_showChat.value) {
+              _showChat.value = false;
+              _tabCtrl.selectButton(0);
+              _pageController.jumpToPage(0);
+              return false;
+            }
+            if (overlay.isViewingProtocol)       { nav.closeProtocol();        return false; }
+            if (overlay.isViewingAlerts)          { nav.closeAlerts();          return false; }
+            if (overlay.isViewingFrequencyDetail) { nav.closeFrequencyDetail(); return false; }
+            if (overlay.isViewingPlanOfCare)      { nav.closePlanOfCare();      return false; }
+            if (overlay.isViewingPatientDetail)   { nav.closePatientDetail();   return false; }
+            if (overlay.isViewingMap)             { nav.closeMap();             return false; }
+            if (overlay.isViewingVisit)           { nav.closeVisit();           return false; }
+            if (overlay.isScheduleVisit)          { nav.closeScheduleVisit();   return false; }
+            final page = _pageController.page?.round() ?? 0;
+            if (page > 0) { _jumpTo(page - 1); return false; }
+            return true;
+          },
+          child: Scaffold(
+            backgroundColor: Colors.white,
+            body: Column(
+              children: [
+                // ── APP BAR ─────────────────────────────────────────────
+                ApplicationEmrAppBar(
+                  isEmrClinicianModule: true,
+                  headingText: anyOverlay ? ' ' : 'EMR - Clinical',
+                  body: [
+                    if (anyOverlay)
+                      const Expanded(
+                        child: Center(
+                          child: Text(
+                            'EMR - clinician',
+                            style: TextStyle(
+                              fontSize: FontSize.s14,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xff3E3B3B),
+                              decoration: TextDecoration.none,
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      Expanded(
+                        child: _TabButtons(
+                          tabCtrl: _tabCtrl,
+                          jumpTo: _jumpTo,
+                          badgeKey: _badgeKey,
+                          onBellTap: _toggleNotification,
+                          screenWidth: widget.screenWidth,
+                          menuButtonKey: _menuButtonKey,
+                          onMenuTap: _openMenu,
+                        ),
+                      ),
+                  ],
+                ),
+
+                // ── BODY ────────────────────────────────────────────────
+                Expanded(
+                  child: Stack(
+                    children: [
+                      ValueListenableBuilder<bool>(
+                        valueListenable: _showChat,
+                        builder: (_, chatVisible, child) => Offstage(
+                          offstage: anyOverlay || chatVisible,
+                          child: child,
+                        ),
+                        child: _PageBody(
+                          pageController: _pageController,
+                          tabCtrl: _tabCtrl,
+                        ),
+                      ),
+
+                      // ── Chat ───────────────────────────────────────
+                      ValueListenableBuilder<bool>(
+                        valueListenable: _showChat,
+                        builder: (_, visible, child) => AnimatedSlide(
+                          offset: visible
+                              ? Offset.zero
+                              : const Offset(1.0, 0.0),
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                          child: AnimatedOpacity(
+                            opacity: visible ? 1.0 : 0.0,
+                            duration: const Duration(milliseconds: 300),
+                            child: child,
+                          ),
+                        ),
+                        child: QACommunicationChat(onTap: (_) => _jumpTo(0)),
+                      ),
+
+                      // ── Notification panel ─────────────────────────
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: FractionallySizedBox(
+                          widthFactor: 0.4,
+                          heightFactor: 1.0,
+                          child: ValueListenableBuilder<bool>(
+                            valueListenable: _showNotification,
+                            builder: (_, visible, __) =>
+                                ValueListenableBuilder<int>(
+                                  valueListenable: _notifPanelKey,
+                                  builder: (_, panelKey, __) => AnimatedSlide(
+                                    offset: visible
+                                        ? Offset.zero
+                                        : const Offset(1.0, 0.0),
+                                    duration: const Duration(milliseconds: 300),
+                                    curve: Curves.easeInOut,
+                                    child: AnimatedOpacity(
+                                      opacity: visible ? 1.0 : 0.0,
+                                      duration: const Duration(milliseconds: 300),
+                                      child: KeyedSubtree(
+                                        key: ValueKey(panelKey),
+                                        child: EMRNotificationPanel(
+                                          onClose: () =>
+                                          _showNotification.value = false,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                          ),
+                        ),
+                      ),
+
+                      // ── Overlays ───────────────────────────────────
+                      ///calender visit
+                      if (overlay.isViewingVisit)
+                        VisitDetailsScreen(visitId: nav.visitId),
+
+                      ///dashbord today visit
+                      if (overlay.isScheduleVisit)
+                        ScheduleVisitDetails(visitId: nav.visitId),
+                      if (overlay.isViewingMap)
+                        const TodaysVisitsMapScreen(),
+                      if (overlay.isViewingPatientDetail)
+                        const EMRPatientDetailsScreen(),
+                      if (overlay.isViewingProtocol)
+                        PatientsProtocolScreen(
+                            ptId: nav.selectedPatient!.patientId),
+                      if (overlay.isViewingAlerts)
+                        PatientsAlertsScreen(
+                            ptId: nav.selectedPatient!.patientId),
+                      if (overlay.isViewingPlanOfCare)
+                        PlanOfCareScreen(
+                            ptId: nav.selectedPatient!.patientId),
+                      if (overlay.isViewingFrequencyDetail)
+                        const FrequencyDetailScreen(),
+                    ],
+                  ),
+                ),
+
+                const BottomBarRow(),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+class AppBarIcon extends StatelessWidget {
+  const AppBarIcon({required this.icon, required this.onPressed});
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      hoverColor: Colors.transparent,
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.all(6),
+        child: Icon(icon, size: 22, color: ColorManager.mediumgrey),
+      ),
+    );
+  }
+}
