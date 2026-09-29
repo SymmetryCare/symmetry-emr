@@ -21,6 +21,8 @@ import 'package:symmetry_emr/modules/emr/oasis_form_builder/provider/form_builde
 import 'package:symmetry_emr/modules/emr/oasis_form_builder/side_drawer/side_drawer_provider.dart';
 import 'package:symmetry_emr/modules/emr/presentation/screens/emr_tab/patients_tab_emr/widgets/patient_chart_tabs/widget/const_form_tap.dart';
 import 'package:symmetry_emr/modules/emr/presentation/screens/responsive_screen/responsive_screen_emr.dart';
+import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/coder/responsive_screen/coder_responsive.dart';
+import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/qa_coordinator/responsive_screen/qa_responsive.dart';
 import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/coder/coder_provider/coder_myTask_provider.dart';
 import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/coder/coder_provider/coder_provider.dart';
 import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/qa_coordinator/qa_provider/qa_dashboard_provider.dart';
@@ -61,8 +63,11 @@ Future<void> main() async {
 
   final accessToken = await TokenManager.getAccessToken();
   final bool signedIn = accessToken.isNotEmpty;
+  // Only meaningful when signed in -- an anonymous boot goes to the login
+  // screen regardless of whatever role a stale localStorage entry names.
+  final String role = signedIn ? await TokenManager.getRole() : '';
   EmrApplication.markSession(signedIn);
-  runApp(EmrApplication(isSignedIn: signedIn));
+  runApp(EmrApplication(isSignedIn: signedIn, role: role));
 }
 
 /// EMR runs in the same two shapes HR, Establishment and RIS do — standalone
@@ -72,9 +77,15 @@ Future<void> main() async {
 /// is decided at build time by `--dart-define=SHELL_PATH=/`; see
 /// `app/services/shell/shell_link.dart`.
 class EmrApplication extends StatelessWidget {
-  const EmrApplication({super.key, required this.isSignedIn});
+  const EmrApplication({super.key, required this.isSignedIn, required this.role});
 
   final bool isSignedIn;
+
+  /// The signed-in user's role, as `TokenManager.getRole()` returns it --
+  /// empty when signed out. Read once at boot to pick [_initialRouteFor];
+  /// nothing here re-reads it after that; a role change takes effect on the
+  /// next sign-in, same as it always has.
+  final String role;
 
   /// Whether a session exists *now*, as opposed to at boot.
   ///
@@ -158,7 +169,7 @@ class EmrApplication extends StatelessWidget {
           visualDensity: VisualDensity.adaptivePlatformDensity,
         ),
         initialRoute:
-            isSignedIn ? RouteStrings.emrDesktop : LoginScreen.routeName,
+            isSignedIn ? _initialRouteFor(role) : LoginScreen.routeName,
         onGenerateRoute: _generateRoute,
         builder: (BuildContext context, Widget? child) {
           // Replace the cached/default config with the live one once there is
@@ -174,6 +185,36 @@ class EmrApplication extends StatelessWidget {
   /// snapshot, and again when the login flow hands off to the module.
   static void markSession(bool value) => _hasSession = value;
 
+  /// Where a freshly booted, signed-in session lands.
+  ///
+  /// The monolith's home menu sent QA and Coder to their own desktops
+  /// (`/qaCoordinatorDesktop`, `/coderDesktop`) rather than the clinician
+  /// dashboard every other role opens. Those two screens made the trip in
+  /// this repo's extraction from the monolith -- see CONTEXT.md -- and are
+  /// otherwise unreachable now that the shell can no longer push a route
+  /// into this app directly: opening EMR from the picker is a full page
+  /// navigation to a separate bundle, not `Navigator.pushNamed` inside one.
+  /// Role has to be resolved in here instead, from the same localStorage
+  /// entry the shell already wrote at login.
+  ///
+  /// QA Manager, Clinical Manager and DME are deliberately not routed here.
+  /// CONTEXT.md says plainly that their desktop screens are **not** part of
+  /// this repo -- only a handful of their widgets came along as transitive
+  /// dependencies of the OASIS form mapper, not the screens themselves. There
+  /// is nothing real to send them to, so they fall back to the general EMR
+  /// desktop like Clinical and Assistant do, rather than to a route that
+  /// would render blank.
+  static String _initialRouteFor(String role) {
+    switch (role) {
+      case 'QA':
+        return RouteStrings.qaDesktop;
+      case 'Coder':
+        return RouteStrings.coderDesktop;
+      default:
+        return RouteStrings.emrDesktop;
+    }
+  }
+
   Route<dynamic> _generateRoute(RouteSettings settings) {
     final Widget page;
 
@@ -184,6 +225,14 @@ class EmrApplication extends StatelessWidget {
       case RouteStrings.home:
         _hasSession = true;
         page = const ResponsiveScreenEMR();
+        break;
+      case RouteStrings.qaDesktop:
+        _hasSession = true;
+        page = const ResponsiveScreenQA();
+        break;
+      case RouteStrings.coderDesktop:
+        _hasSession = true;
+        page = const ResponsiveScreenCoder();
         break;
       case LoginScreen.routeName:
         // Logout and session-expiry both land here; the session is gone.
