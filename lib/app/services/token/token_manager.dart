@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:symmetry_emr/app/services/tab_memory.dart';
 
 class TokenManager {
   static Future<String> getAccessToken() async {
@@ -179,6 +180,7 @@ class TokenManager {
     SharedPreferences sharedPreferences = await SharedPreferences.getInstance();
     await sharedPreferences.setString("refreshToken", "");
     await sharedPreferences.setString("accessToken", "");
+    TabMemory.clearAll(); // next login opens on the first tab
   }
 
   static void removeFCMToken() async {
@@ -203,6 +205,7 @@ class TokenManager {
   static Future<void> clearSession() async {
     SharedPreferences sharedPreferences = await SharedPreferences.getInstance();
     print('Clearing full session from SharedPreferences');
+    TabMemory.clearAll(); // next login opens on the first tab
     await sharedPreferences.remove("accessToken");
     await sharedPreferences.remove("refreshToken");
     await sharedPreferences.remove("userName");

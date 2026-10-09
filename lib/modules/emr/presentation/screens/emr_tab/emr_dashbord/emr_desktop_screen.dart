@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 
 import 'package:symmetry_emr/app/resources/color.dart';
+import 'package:symmetry_emr/app/services/tab_memory.dart';
 import 'package:symmetry_emr/app/resources/font_manager.dart';
 import 'package:symmetry_emr/modules/emr/providers/hh_emr/visit_details_provider.dart';
 import 'package:symmetry_emr/app/resources/value_manager.dart';
@@ -291,7 +292,10 @@ class _PageBody extends StatelessWidget {
     return PageView(
       controller: pageController,
       physics: const NeverScrollableScrollPhysics(),
-      onPageChanged: (i) => tabCtrl.selectButton(i),
+      onPageChanged: (i) {
+        tabCtrl.selectButton(i);
+        TabMemory.write(_EMRDesktopScreenState.tabMemoryKey, i); // restore on refresh
+      },
       children: const [
         _KeepAlive(child: EMRDashboardScreen()),
         _KeepAlive(child: EMRCalendarScreen()),
@@ -393,7 +397,8 @@ class EMRDesktopScreen extends StatefulWidget {
 }
 
 class _EMRDesktopScreenState extends State<EMRDesktopScreen> {
-  final PageController _pageController = PageController();
+  static const String tabMemoryKey = 'emr';
+  late final PageController _pageController;
   final ButtonSelectionEMRController _tabCtrl =
   Get.put(ButtonSelectionEMRController());
   final GlobalKey<_NotifBadgeState> _badgeKey = GlobalKey<_NotifBadgeState>();
@@ -416,6 +421,12 @@ class _EMRDesktopScreenState extends State<EMRDesktopScreen> {
   @override
   void initState() {
     super.initState();
+    // Restore the last tab of this browser tab (survives refresh).
+    final initialTab =
+        TabMemory.read(tabMemoryKey, pageCount: _tabLabels.length);
+    _pageController = PageController(initialPage: initialTab);
+    _tabCtrl.selectButton(initialTab);
+    // Clears overlay/detail state only — the tab index is not touched here.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<EMRNavigationController>().reset();
     });

@@ -16,7 +16,18 @@ class ResponsiveScreenEMR extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Get.put(ButtonSelectionEMRController()).selectButton(0);
+    // Initial tab is restored by EMRDesktopScreen (TabMemory), not forced to 0.
+    Get.put(ButtonSelectionEMRController());
+    // Root screen of this app: on web a pop arrives from the browser — Back,
+    // or Chrome's Enter in the address bar on a `#` URL — and an unhandled pop
+    // on the root route exits the app to the tab's previous page.
+    return PopScope(
+      canPop: false,
+      child: _buildScreen(),
+    );
+  }
+
+  Widget _buildScreen() {
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth >= 855) {

@@ -171,6 +171,7 @@ class EmrApplication extends StatelessWidget {
         initialRoute:
             isSignedIn ? _initialRouteFor(role) : LoginScreen.routeName,
         onGenerateRoute: _generateRoute,
+        onGenerateInitialRoutes: _generateInitialRoutes,
         builder: (BuildContext context, Widget? child) {
           // Replace the cached/default config with the live one once there is
           // a context to make the call with.
@@ -215,6 +216,25 @@ class EmrApplication extends StatelessWidget {
     }
   }
 
+  /// The one route the app opens on, taken from the URL (`/emr/#/emrDesktop`).
+  ///
+  /// Only that route is pushed — Flutter's default would stack `/` under it,
+  /// a second copy of the module. And the URL never outranks the session: a
+  /// signed-out boot opens the login flow (or the shell's, when hosted) even
+  /// when the address bar still names the module. Signed in, a URL naming no
+  /// screen (`/`) or the login screen opens the role's own desktop.
+  List<Route<dynamic>> _generateInitialRoutes(String initialRoute) {
+    final String path = Uri.parse(initialRoute).path;
+    final bool public = path == LoginScreen.routeName ||
+        path == ForgetPassword.routeName;
+    final String name = isSignedIn
+        ? (path == LoginScreen.routeName || path == '/'
+            ? _initialRouteFor(role)
+            : path)
+        : (public ? path : LoginScreen.routeName);
+    return <Route<dynamic>>[_generateRoute(RouteSettings(name: name))];
+  }
+
   Route<dynamic> _generateRoute(RouteSettings settings) {
     final Widget page;
 
@@ -226,13 +246,16 @@ class EmrApplication extends StatelessWidget {
         _hasSession = true;
         page = const ResponsiveScreenEMR();
         break;
+      // Root screens for their roles, so a browser pop (Back, or Chrome's
+      // Enter on a `#` URL) is held here instead of exiting the app — the
+      // same guard ResponsiveScreenEMR carries.
       case RouteStrings.qaDesktop:
         _hasSession = true;
-        page = const ResponsiveScreenQA();
+        page = const PopScope(canPop: false, child: ResponsiveScreenQA());
         break;
       case RouteStrings.coderDesktop:
         _hasSession = true;
-        page = const ResponsiveScreenCoder();
+        page = const PopScope(canPop: false, child: ResponsiveScreenCoder());
         break;
       case LoginScreen.routeName:
         // Logout and session-expiry both land here; the session is gone.
@@ -265,9 +288,12 @@ class EmrApplication extends StatelessWidget {
   /// here, so a shell-hosted build never shows a second login form on the same
   /// origin. The redirect is synchronous, so the empty widget is on screen
   /// only until the browser navigates.
+  ///
+  /// The login screen is the root route when signed out, so a browser pop
+  /// (Back, or Chrome's Enter on a `#` URL) is held there instead of exiting.
   Widget _loginOrShell() {
     if (ShellLink.signOutToShell()) return const SizedBox.shrink();
-    return const LoginScreen();
+    return const PopScope(canPop: false, child: LoginScreen());
   }
 
   String? _emailFrom(Object? arguments) {
