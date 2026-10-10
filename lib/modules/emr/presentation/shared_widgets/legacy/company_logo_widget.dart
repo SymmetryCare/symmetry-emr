@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/legacy/company_logo_service.dart';
 import 'package:symmetry_emr/app/resources/value_manager.dart';
+import 'package:go_router/go_router.dart';
+import 'package:symmetry_emr/app/router/emr_routes.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 /// Drop-in logo widget used by ALL app bars.
@@ -95,11 +97,21 @@ class _CompanyLogoWidgetState extends State<CompanyLogoWidget> {
       splashColor: Colors.transparent,
       highlightColor: Colors.transparent,
       hoverColor: Colors.transparent,
+      // Home is the clinician Dashboard, where '/home' always led. On the
+      // signed-in pages that is a URL on the router, which has no named
+      // '/home' route to push.
       onTap: widget.navigateOnTap
-          ? () => Navigator.of(context).pushNamedAndRemoveUntil(
-        '/home',
-        ModalRoute.withName('/home'),
-      )
+          ? () {
+              final GoRouter? router = GoRouter.maybeOf(context);
+              if (router != null) {
+                router.go(EmrRoutes.clinicianHome);
+                return;
+              }
+              Navigator.of(context).pushNamedAndRemoveUntil(
+                '/home',
+                ModalRoute.withName('/home'),
+              );
+            }
           : null,
       child: SizedBox(
         width: widget.width,

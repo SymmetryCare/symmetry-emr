@@ -4,7 +4,6 @@ import 'package:symmetry_emr/app/resources/font_manager.dart';
 import 'package:symmetry_emr/modules/emr/data/api/managers/user_appbar_manager.dart';
 import 'package:symmetry_emr/app/services/token/token_manager.dart';
 import 'package:symmetry_emr/modules/emr/data/models/establishment_data/user/user_appbar.dart';
-import 'package:symmetry_emr/presentation/screens/login_module/login/login_screen.dart';
 import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/legacy/app_clickable_widget.dart';
 
 import 'package:symmetry_emr/app/resources/theme_manager.dart';
@@ -14,6 +13,7 @@ import 'package:symmetry_emr/modules/emr/data/api/managers/calling/calling_Manag
 import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/em/manage_hr/manage_work_schedule/work_schedule/widgets/delete_popup_const.dart';
 import 'package:symmetry_emr/modules/emr/presentation/screens/emr_tab/profile_setting_screen_emr/profile_emr_screen.dart';
 import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/legacy/company_logo_widget.dart';
+import 'package:symmetry_emr/app/services/session/app_session.dart';
 // removed in extraction: import '../../../main.dart'; // ✅ gives access to global navigatorKey
 
 /// ✅ NEW — shared guard so a null/empty/literal-"null" value never
@@ -331,17 +331,11 @@ class _UserAppBarWidgetEmrState extends State<UserAppBarWidgetEmr> {
                                             refreshTokenLogout.statusCode == 204) {
                                           print('User logged out successfully');
                                           await TokenManager.clearSession(); // ✅ clear on success too
-                                          Navigator.pushNamedAndRemoveUntil(
-                                            context,
-                                            LoginScreen.routeName, (route) => false,
-                                          );
+                                          AppSession.signedOut(context);
                                         } else {
                                           print('Failed to log out user');
                                           await TokenManager.clearSession(); // ✅ was: removeAccessToken()
-                                          Navigator.pushNamedAndRemoveUntil(
-                                            context,
-                                            LoginScreen.routeName, (route) => false,
-                                          );
+                                          AppSession.signedOut(context);
                                         }
                                       } else {
                                         var response = await unRegisterDevice(
@@ -357,19 +351,11 @@ class _UserAppBarWidgetEmrState extends State<UserAppBarWidgetEmr> {
                                               refreshTokenLogout.statusCode == 204) {
                                             print('User logged out successfully');
                                             await TokenManager.clearSession(); // ✅ was: removeFCMToken() only
-                                            Navigator.pushNamedAndRemoveUntil(
-                                              context,
-                                              LoginScreen.routeName,
-                                                  (route) => false,
-                                            );
+                                            AppSession.signedOut(context);
                                           } else {
                                             print('Failed to log out user');
                                             await TokenManager.clearSession(); // ✅ was: removeAccessToken()
-                                            Navigator.pushNamedAndRemoveUntil(
-                                              context,
-                                              LoginScreen.routeName,
-                                                  (route) => false,
-                                            );
+                                            AppSession.signedOut(context);
                                           }
                                         }
                                       }

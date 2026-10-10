@@ -1,28 +1,27 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:symmetry_emr/app/services/title/app_title.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+import 'package:symmetry_emr/app/login_flow_app.dart';
 import 'package:symmetry_emr/app/resources/provider/em_provider/em_main_provider.dart';
 import 'package:symmetry_emr/app/resources/provider/navigation_provider.dart';
 import 'package:symmetry_emr/app/resources/provider/office_location.dart';
 import 'package:symmetry_emr/app/resources/provider/sm_provider/sm_slider_provider.dart';
 import 'package:symmetry_emr/app/resources/provider/version_provider.dart';
-import 'package:symmetry_emr/app/resources/screen_route_name.dart';
+import 'package:symmetry_emr/app/router/emr_router.dart';
+import 'package:symmetry_emr/app/router/emr_routes.dart';
 import 'package:symmetry_emr/app/services/config/error_surface.dart';
 import 'package:symmetry_emr/app/services/config/frontend_config_boot.dart';
-import 'package:symmetry_emr/app/services/shell/shell_link.dart';
+import 'package:symmetry_emr/app/services/session/app_session.dart';
 import 'package:symmetry_emr/app/services/token/token_manager.dart';
-import 'package:symmetry_emr/data/navigator_arguments/screen_arguments.dart';
 import 'package:symmetry_emr/firebase_options.dart';
 import 'package:symmetry_emr/modules/emr/oasis_form_builder/provider/form_builder_provider.dart';
 import 'package:symmetry_emr/modules/emr/oasis_form_builder/side_drawer/side_drawer_provider.dart';
 import 'package:symmetry_emr/modules/emr/presentation/screens/emr_tab/patients_tab_emr/widgets/patient_chart_tabs/widget/const_form_tap.dart';
-import 'package:symmetry_emr/modules/emr/presentation/screens/responsive_screen/responsive_screen_emr.dart';
-import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/coder/responsive_screen/coder_responsive.dart';
-import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/qa_coordinator/responsive_screen/qa_responsive.dart';
 import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/coder/coder_provider/coder_myTask_provider.dart';
 import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/coder/coder_provider/coder_provider.dart';
 import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/qa_coordinator/qa_provider/qa_dashboard_provider.dart';
@@ -33,14 +32,14 @@ import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/scheduler/s
 import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/scheduler/sm_refferal/widgets/refferal_pending_widgets/r_p_eye_pageview_screen.dart';
 import 'package:symmetry_emr/modules/emr/providers/emr_provider/emr_patient_provider.dart';
 import 'package:symmetry_emr/modules/emr/providers/hh_emr/visit_details_provider.dart';
-import 'package:symmetry_emr/presentation/screens/login_module/email_verification/email_verification.dart';
-import 'package:symmetry_emr/presentation/screens/login_module/forget_pass_verification/forget_pass_verification.dart';
-import 'package:symmetry_emr/presentation/screens/login_module/forget_password/forget_password_screen.dart';
-import 'package:symmetry_emr/presentation/screens/login_module/login/login_screen.dart';
 
-/// Global navigator key. The post-first-frame frontend-config refresh needs a
-/// `BuildContext` that outlives any one screen.
+/// The signed-in app's root navigator (the router's). The post-first-frame
+/// frontend-config refresh needs a `BuildContext` that outlives any one screen.
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+/// The login flow's navigator. Its own key: the signed-in app's router owns
+/// [navigatorKey], and one GlobalKey cannot sit on two navigators.
+final GlobalKey<NavigatorState> loginNavigatorKey = GlobalKey<NavigatorState>();
 
 /// Carried over from the monolith's `lib/main.dart`, where it is declared and
 /// read by `oasis_form_builder/constants/responsive.dart` but never attached to
@@ -50,6 +49,15 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 GlobalKey<NavigatorState> navigationKeyOasis = GlobalKey();
 
 Future<void> main() async {
+  // Real paths in the address bar — /emr/patients, not /emr/#/emrDesktop — so
+  // every page has a URL that behaves like any website's: refresh and Enter
+  // in the address bar reload that page, and a copied link opens it. Must run
+  // before the first frame.
+  //
+  // The server has to answer every path under /emr/ with /emr/index.html (see
+  // README.md, "Deploy"), or a refresh on any page but the first is a 404.
+  // Old #/ links are rewritten in web/index.html.
+  usePathUrlStrategy();
   WidgetsFlutterBinding.ensureInitialized();
   // No-op unless built with --dart-define=DEBUG_ERRORS=true.
   ErrorSurface.install();
@@ -62,12 +70,14 @@ Future<void> main() async {
   await FrontendConfigBoot.ensureLoaded();
 
   final accessToken = await TokenManager.getAccessToken();
-  final bool signedIn = accessToken.isNotEmpty;
-  // Only meaningful when signed in -- an anonymous boot goes to the login
-  // screen regardless of whatever role a stale localStorage entry names.
-  final String role = signedIn ? await TokenManager.getRole() : '';
-  EmrApplication.markSession(signedIn);
-  runApp(EmrApplication(isSignedIn: signedIn, role: role));
+  if (accessToken.isNotEmpty) {
+    // Picks the desktop a URL naming no page opens (`/`): QA and Coder have
+    // their own. Only read signed in — an anonymous boot goes to the login
+    // screen whatever role a stale localStorage entry names.
+    EmrRoutes.bootRole = await TokenManager.getRole();
+    AppSession.instance.start();
+  }
+  runApp(const EmrApplication());
 }
 
 /// EMR runs in the same two shapes HR, Establishment and RIS do — standalone
@@ -76,26 +86,31 @@ Future<void> main() async {
 /// already in `localStorage` and this boots straight to the module. Which one
 /// is decided at build time by `--dart-define=SHELL_PATH=/`; see
 /// `app/services/shell/shell_link.dart`.
+///
+/// Signed out, it shows the login flow ([LoginFlowApp]); signed in, the EMR
+/// role desktops on go_router ([EmrRouter]), one URL per page. [AppSession]
+/// decides which, and switches on login, sign-out and expiry. Every provider
+/// sits above both, so neither swap loses app-wide state.
 class EmrApplication extends StatelessWidget {
-  const EmrApplication({super.key, required this.isSignedIn, required this.role});
+  const EmrApplication({super.key});
 
-  final bool isSignedIn;
+  static final ThemeData _theme = ThemeData(
+    colorScheme: ColorScheme.fromSwatch().copyWith(
+      primary: const Color(0xff50B5E5),
+    ),
+    fontFamily: GoogleFonts.firaSans().fontFamily,
+    useMaterial3: false,
+    visualDensity: VisualDensity.adaptivePlatformDensity,
+  );
 
-  /// The signed-in user's role, as `TokenManager.getRole()` returns it --
-  /// empty when signed out. Read once at boot to pick [_initialRouteFor];
-  /// nothing here re-reads it after that; a role change takes effect on the
-  /// next sign-in, same as it always has.
-  final String role;
-
-  /// Whether a session exists *now*, as opposed to at boot.
-  ///
-  /// [isSignedIn] is a snapshot taken in `main()`, before the first frame. It
-  /// is the right thing for `initialRoute`, but wrong for the fallback in
-  /// [_generateRoute]: after a successful login it still says `false`, so any
-  /// route this table does not name would send a signed-in user back to the
-  /// login screen. `onGenerateRoute` is synchronous and cannot re-read the
-  /// async token store, so the login hand-off flips this instead.
-  static bool _hasSession = false;
+  /// Replace the cached/default config with the live one once there is a
+  /// context — [key]'s navigator's — to make the call with.
+  static TransitionBuilder _startUpWork(GlobalKey<NavigatorState> key) {
+    return (BuildContext context, Widget? child) {
+      FrontendConfigBoot.refreshInBackground(key);
+      return child ?? const SizedBox.shrink();
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -156,151 +171,26 @@ class EmrApplication extends StatelessWidget {
           ),
         ),
       ],
-      child: MaterialApp(
-        navigatorKey: navigatorKey,
-        title: AppTitle.value,
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSwatch().copyWith(
-            primary: const Color(0xff50B5E5),
-          ),
-          fontFamily: GoogleFonts.firaSans().fontFamily,
-          useMaterial3: false,
-          visualDensity: VisualDensity.adaptivePlatformDensity,
-        ),
-        initialRoute:
-            isSignedIn ? _initialRouteFor(role) : LoginScreen.routeName,
-        onGenerateRoute: _generateRoute,
-        onGenerateInitialRoutes: _generateInitialRoutes,
-        builder: (BuildContext context, Widget? child) {
-          // Replace the cached/default config with the live one once there is
-          // a context to make the call with.
-          FrontendConfigBoot.refreshInBackground(navigatorKey);
-          return child ?? const SizedBox.shrink();
+      child: ListenableBuilder(
+        listenable: AppSession.instance,
+        builder: (BuildContext context, Widget? _) {
+          if (!AppSession.instance.isSignedIn) {
+            return LoginFlowApp(
+              navigatorKey: loginNavigatorKey,
+              title: AppTitle.value,
+              theme: _theme,
+              builder: _startUpWork(loginNavigatorKey),
+            );
+          }
+          return MaterialApp.router(
+            title: AppTitle.value,
+            debugShowCheckedModeBanner: false,
+            theme: _theme,
+            routerConfig: EmrRouter.router(navigatorKey),
+            builder: _startUpWork(navigatorKey),
+          );
         },
       ),
     );
-  }
-
-  /// Record whether a session exists. Called from `main()` with the boot
-  /// snapshot, and again when the login flow hands off to the module.
-  static void markSession(bool value) => _hasSession = value;
-
-  /// Where a freshly booted, signed-in session lands.
-  ///
-  /// The monolith's home menu sent QA and Coder to their own desktops
-  /// (`/qaCoordinatorDesktop`, `/coderDesktop`) rather than the clinician
-  /// dashboard every other role opens. Those two screens made the trip in
-  /// this repo's extraction from the monolith -- see CONTEXT.md -- and are
-  /// otherwise unreachable now that the shell can no longer push a route
-  /// into this app directly: opening EMR from the picker is a full page
-  /// navigation to a separate bundle, not `Navigator.pushNamed` inside one.
-  /// Role has to be resolved in here instead, from the same localStorage
-  /// entry the shell already wrote at login.
-  ///
-  /// QA Manager, Clinical Manager and DME are deliberately not routed here.
-  /// CONTEXT.md says plainly that their desktop screens are **not** part of
-  /// this repo -- only a handful of their widgets came along as transitive
-  /// dependencies of the OASIS form mapper, not the screens themselves. There
-  /// is nothing real to send them to, so they fall back to the general EMR
-  /// desktop like Clinical and Assistant do, rather than to a route that
-  /// would render blank.
-  static String _initialRouteFor(String role) {
-    switch (role) {
-      case 'QA':
-        return RouteStrings.qaDesktop;
-      case 'Coder':
-        return RouteStrings.coderDesktop;
-      default:
-        return RouteStrings.emrDesktop;
-    }
-  }
-
-  /// The one route the app opens on, taken from the URL (`/emr/#/emrDesktop`).
-  ///
-  /// Only that route is pushed — Flutter's default would stack `/` under it,
-  /// a second copy of the module. And the URL never outranks the session: a
-  /// signed-out boot opens the login flow (or the shell's, when hosted) even
-  /// when the address bar still names the module. Signed in, a URL naming no
-  /// screen (`/`) or the login screen opens the role's own desktop.
-  List<Route<dynamic>> _generateInitialRoutes(String initialRoute) {
-    final String path = Uri.parse(initialRoute).path;
-    final bool public = path == LoginScreen.routeName ||
-        path == ForgetPassword.routeName;
-    final String name = isSignedIn
-        ? (path == LoginScreen.routeName || path == '/'
-            ? _initialRouteFor(role)
-            : path)
-        : (public ? path : LoginScreen.routeName);
-    return <Route<dynamic>>[_generateRoute(RouteSettings(name: name))];
-  }
-
-  Route<dynamic> _generateRoute(RouteSettings settings) {
-    final Widget page;
-
-    switch (settings.name) {
-      // Reaching the module means the login flow completed (or the app booted
-      // with a session), so the token is written by now.
-      case RouteStrings.emrDesktop:
-      case RouteStrings.home:
-        _hasSession = true;
-        page = const ResponsiveScreenEMR();
-        break;
-      // Root screens for their roles, so a browser pop (Back, or Chrome's
-      // Enter on a `#` URL) is held here instead of exiting the app — the
-      // same guard ResponsiveScreenEMR carries.
-      case RouteStrings.qaDesktop:
-        _hasSession = true;
-        page = const PopScope(canPop: false, child: ResponsiveScreenQA());
-        break;
-      case RouteStrings.coderDesktop:
-        _hasSession = true;
-        page = const PopScope(canPop: false, child: ResponsiveScreenCoder());
-        break;
-      case LoginScreen.routeName:
-        // Logout and session-expiry both land here; the session is gone.
-        _hasSession = false;
-        page = _loginOrShell();
-        break;
-      case EmailVerification.routeName:
-        final email = _emailFrom(settings.arguments);
-        page =
-            email == null ? _loginOrShell() : EmailVerification(email: email);
-        break;
-      case ForgetPassword.routeName:
-        page = const ForgetPassword();
-        break;
-      case VerifyPassword.routeName:
-        final email = _emailFrom(settings.arguments);
-        page = email == null ? _loginOrShell() : VerifyPassword(email: email);
-        break;
-      default:
-        page = _hasSession ? const ResponsiveScreenEMR() : _loginOrShell();
-        break;
-    }
-
-    return MaterialPageRoute<void>(builder: (_) => page, settings: settings);
-  }
-
-  /// This app's own login screen, or a redirect to the shell's when hosted.
-  ///
-  /// Every route above that would otherwise render a login form goes through
-  /// here, so a shell-hosted build never shows a second login form on the same
-  /// origin. The redirect is synchronous, so the empty widget is on screen
-  /// only until the browser navigates.
-  ///
-  /// The login screen is the root route when signed out, so a browser pop
-  /// (Back, or Chrome's Enter on a `#` URL) is held there instead of exiting.
-  Widget _loginOrShell() {
-    if (ShellLink.signOutToShell()) return const SizedBox.shrink();
-    return const PopScope(canPop: false, child: LoginScreen());
-  }
-
-  String? _emailFrom(Object? arguments) {
-    if (arguments is ScreenArguments) {
-      final email = arguments.title?.trim();
-      return email == null || email.isEmpty ? null : email;
-    }
-    return null;
   }
 }

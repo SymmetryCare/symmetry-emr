@@ -18,8 +18,10 @@ import 'package:symmetry_emr/modules/emr/data/api/managers/calling/calling_Manag
 import 'package:symmetry_emr/modules/emr/data/api/managers/user_appbar_manager.dart';
 import 'package:symmetry_emr/modules/emr/data/models/establishment_data/user/user_appbar.dart';
 import 'package:symmetry_emr/data/appconfige_data/app_confige_data.dart';
-import 'package:symmetry_emr/presentation/screens/login_module/login/login_screen.dart';
 import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/legacy/widgets/const_appbar/controller.dart';
+import 'package:symmetry_emr/app/services/session/app_session.dart';
+import 'package:go_router/go_router.dart';
+import 'package:symmetry_emr/app/router/emr_routes.dart';
 
 class AppBarWeb extends StatefulWidget {
   AppBarWeb({super.key, required this.headingText,
@@ -269,6 +271,16 @@ class _AppBarWebState extends State<AppBarWeb> {
                                           AppClickableWidget(
                                             onTap: widget.onMove == null ? () {
                                               tabState.clearValue();
+                                              // Home is the clinician
+                                              // Dashboard, a URL on the
+                                              // signed-in router.
+                                              final GoRouter? router =
+                                                  GoRouter.maybeOf(context);
+                                              if (router != null) {
+                                                router.go(
+                                                    EmrRoutes.clinicianHome);
+                                                return;
+                                              }
                                               Navigator.of(context)
                                                   .pushNamedAndRemoveUntil(
                                                 "/home", // The target route name you want to go back to
@@ -678,19 +690,13 @@ class _AppBarWebState extends State<AppBarWeb> {
                                                                 String fcmToken = await TokenManager.getFcmTokenRegister();
                                                                 if(fcmToken.isEmpty){
                                                                   TokenManager.removeAccessToken();
-                                                                  Navigator.pushNamedAndRemoveUntil(
-                                                                      context,
-                                                                      LoginScreen.routeName,
-                                                                          (route) => false);
+                                                                  AppSession.signedOut(context);
                                                                 }else{
                                                                   var response = await unRegisterDevice(context: context, fcmToken: fcmToken);
                                                                   if(response.statusCode == 201 || response.statusCode == 200){
                                                                     TokenManager.removeFCMToken();
                                                                     TokenManager.removeAccessToken();
-                                                                    Navigator.pushNamedAndRemoveUntil(
-                                                                        context,
-                                                                        LoginScreen.routeName,
-                                                                            (route) => false);
+                                                                    AppSession.signedOut(context);
                                                                   }
                                                                 }
                                                               },

@@ -9,6 +9,7 @@ import 'package:symmetry_emr/data/api_data/api_data.dart';
 import 'package:symmetry_emr/presentation/screens/login_module/login/login_screen.dart';
 import 'package:symmetry_emr/app/resources/const_string.dart';
 import 'package:symmetry_emr/app/services/shell/shell_link.dart';
+import 'package:symmetry_emr/app/services/session/app_session.dart';
 
 class AuthManager {
   ///Sign in with Email.
@@ -427,7 +428,9 @@ class AuthManager {
         TokenManager.removeAccessToken();
         // Same rule as every other exit: the shell owns the login screen when
         // this build is hosted behind it.
-        if (!ShellLink.signOutToShell()) {
+        // Signed in, ending the session swaps the pages for the login flow;
+        // the named push is for when the login flow is already up.
+        if (!ShellLink.signOutToShell() && !AppSession.instance.end()) {
           Navigator.pushNamedAndRemoveUntil(
               context, LoginScreen.routeName, (route) => false);
         }

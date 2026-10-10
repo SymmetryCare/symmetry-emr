@@ -4,13 +4,13 @@ import 'package:symmetry_emr/app/resources/font_manager.dart';
 import 'package:symmetry_emr/modules/emr/data/api/managers/user_appbar_manager.dart';
 import 'package:symmetry_emr/app/services/token/token_manager.dart';
 import 'package:symmetry_emr/modules/emr/data/models/establishment_data/user/user_appbar.dart';
-import 'package:symmetry_emr/presentation/screens/login_module/login/login_screen.dart';
 
 import 'package:symmetry_emr/app/resources/theme_manager.dart';
 import 'package:symmetry_emr/app/resources/value_manager.dart';
 import 'package:symmetry_emr/modules/emr/data/api/managers/calling/calling_Manager.dart';
 import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/em/manage_hr/manage_work_schedule/work_schedule/widgets/delete_popup_const.dart';
 import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/legacy/company_logo_widget.dart';
+import 'package:symmetry_emr/app/services/session/app_session.dart';
 
 /// ✅ NEW — shared guard so a null/empty/literal-"null" value never
 /// renders as visible text in the UI.
@@ -248,16 +248,14 @@ class _UserAppBarWidgetState extends State<UserAppBarWidget> {
                 final fcmToken = await TokenManager.getFcmTokenRegister();
                 if (fcmToken.isEmpty) {
                   TokenManager.removeAccessToken();
-                  Navigator.pushNamedAndRemoveUntil(
-                      context, LoginScreen.routeName, (r) => false);
+                  AppSession.signedOut(context);
                 } else {
                   final res = await unRegisterDevice(
                       context: context, fcmToken: fcmToken);
                   if (res.statusCode == 200 || res.statusCode == 201) {
                     TokenManager.removeFCMToken();
                     TokenManager.removeAccessToken();
-                    Navigator.pushNamedAndRemoveUntil(
-                        context, LoginScreen.routeName, (r) => false);
+                    AppSession.signedOut(context);
                   }
                 }
               },

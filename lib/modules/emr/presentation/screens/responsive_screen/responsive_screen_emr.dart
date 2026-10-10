@@ -3,6 +3,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 
 import 'package:symmetry_emr/app/resources/screen_route_name.dart';
+import 'package:symmetry_emr/app/router/emr_routes.dart';
 import 'package:symmetry_emr/modules/emr/presentation/screens/emr_tab/emr_dashbord/emr_desktop_screen.dart';
 
 class ButtonSelectionEMRController extends GetxController {
@@ -12,19 +13,18 @@ class ButtonSelectionEMRController extends GetxController {
 
 class ResponsiveScreenEMR extends StatelessWidget {
   static String routeName = RouteStrings.emrDesktop;
-  const ResponsiveScreenEMR({super.key});
+  const ResponsiveScreenEMR({super.key, required this.location});
+
+  /// The page and open patient screens the URL names; see EmrRouter.
+  final EmrLocation location;
 
   @override
   Widget build(BuildContext context) {
-    // Initial tab is restored by EMRDesktopScreen (TabMemory), not forced to 0.
+    // The tab comes from the URL, set by EMRDesktopScreen, not forced to 0.
+    // Browser Back is a URL change too, which EMRDesktopScreen follows —
+    // nothing here intercepts a pop.
     Get.put(ButtonSelectionEMRController());
-    // Root screen of this app: on web a pop arrives from the browser — Back,
-    // or Chrome's Enter in the address bar on a `#` URL — and an unhandled pop
-    // on the root route exits the app to the tab's previous page.
-    return PopScope(
-      canPop: false,
-      child: _buildScreen(),
-    );
+    return _buildScreen();
   }
 
   Widget _buildScreen() {
@@ -38,6 +38,7 @@ class ResponsiveScreenEMR extends StatelessWidget {
                 : EdgeInsets.zero,
             child: EMRDesktopScreen(
               screenWidth: constraints.maxWidth, // ← pass width
+              location: location,
             ),
           );
         }

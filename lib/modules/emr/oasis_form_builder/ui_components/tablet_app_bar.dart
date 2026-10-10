@@ -11,7 +11,7 @@ import 'package:symmetry_emr/app/resources/color.dart';
 import 'package:symmetry_emr/app/resources/value_manager.dart';
 import 'package:symmetry_emr/modules/emr/data/api/managers/user_appbar_manager.dart';
 import 'package:symmetry_emr/modules/emr/data/models/establishment_data/user/user_appbar.dart';
-import 'package:symmetry_emr/presentation/screens/login_module/login/login_screen.dart';
+import 'package:symmetry_emr/app/services/session/app_session.dart';
 
 class TabletAppBar extends StatefulWidget {
   const TabletAppBar(
@@ -261,13 +261,7 @@ class _TabletAppBarState extends State<TabletAppBar> {
                                                           onDelete: () {
                                                             TokenManager
                                                                 .removeAccessToken();
-                                                            Navigator
-                                                                .pushNamedAndRemoveUntil(
-                                                              context,
-                                                              LoginScreen
-                                                                  .routeName,
-                                                              (route) => false,
-                                                            );
+                                                            AppSession.signedOut(context);
                                                           },
                                                           btnText: "Log Out",
                                                           title: "Log Out",

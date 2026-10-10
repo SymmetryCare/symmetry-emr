@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 
+import 'package:provider/provider.dart';
 import 'package:symmetry_emr/app/resources/screen_route_name.dart';
+import 'package:symmetry_emr/app/router/emr_routes.dart';
+import 'package:symmetry_emr/app/router/role_page_sync.dart';
+import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/coder/coder_provider/coder_provider.dart';
 import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/coder/coder_dashboard/coder_desktop_screen.dart';
 
 /// Entry point for the Coder role, mirroring [ResponsiveScreenQA] one
@@ -17,31 +21,42 @@ import 'package:symmetry_emr/modules/emr/presentation/shared_widgets/coder/coder
 class ResponsiveScreenCoder extends StatelessWidget {
   static String routeName = RouteStrings.coderDesktop;
 
-  const ResponsiveScreenCoder({super.key});
+  const ResponsiveScreenCoder({super.key, required this.page});
+
+  /// The Coder page the URL names (Dashboard, My Tasks or Chat); see
+  /// EmrRouter.
+  final EmrPage page;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth >= 800) {
-          return Padding(
-            padding: MediaQuery.of(context).size.width > 1920
-                ? EdgeInsets.symmetric(
-                    horizontal: MediaQuery.of(context).size.width / 8)
-                : EdgeInsets.zero,
-            child: const CoderDesktopScreen(),
-          );
-        }
-        return Material(
-          color: Colors.white,
-          child: Center(
-            child: SvgPicture.asset(
-              'images/tablet.svg',
-              fit: BoxFit.contain,
+    final CoderProvider coder = context.read<CoderProvider>();
+    return RolePageSync(
+      page: page,
+      listenable: coder,
+      current: () => coder.pageIdx,
+      jumpTo: coder.jumpTo,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth >= 800) {
+            return Padding(
+              padding: MediaQuery.of(context).size.width > 1920
+                  ? EdgeInsets.symmetric(
+                      horizontal: MediaQuery.of(context).size.width / 8)
+                  : EdgeInsets.zero,
+              child: const CoderDesktopScreen(),
+            );
+          }
+          return Material(
+            color: Colors.white,
+            child: Center(
+              child: SvgPicture.asset(
+                'images/tablet.svg',
+                fit: BoxFit.contain,
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }

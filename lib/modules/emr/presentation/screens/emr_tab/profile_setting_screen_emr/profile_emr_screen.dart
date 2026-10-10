@@ -11,11 +11,11 @@ import 'package:symmetry_emr/modules/emr/data/api/managers/hr_module_manager/pro
 import 'package:symmetry_emr/modules/emr/data/api/managers/user_appbar_manager.dart';
 import 'package:symmetry_emr/app/services/token/token_manager.dart';
 import 'package:symmetry_emr/modules/emr/data/models/establishment_data/user/user_appbar.dart';
-import 'package:symmetry_emr/presentation/screens/login_module/login/login_screen.dart';
 import 'package:symmetry_emr/modules/emr/presentation/screens/emr_tab/profile_setting_screen_emr/availability_tab.dart';
 import 'package:symmetry_emr/modules/emr/presentation/screens/emr_tab/profile_setting_screen_emr/document_updated_tab.dart';
 import 'package:symmetry_emr/modules/emr/presentation/screens/emr_tab/profile_setting_screen_emr/edit_profile_popup.dart';
 import 'package:symmetry_emr/modules/emr/presentation/screens/emr_tab/profile_setting_screen_emr/my_earning_tab.dart';
+import 'package:symmetry_emr/app/services/session/app_session.dart';
 
 class ProfileDetailScreen extends StatefulWidget {
   const ProfileDetailScreen({Key? key, required this.userId}) : super(key: key);
@@ -633,10 +633,7 @@ class _LogoutConfirmPopupState extends State<_LogoutConfirmPopup> {
 
                           Future<void> goToLogin() async {
                             await TokenManager.clearSession();
-                            navigator.pushNamedAndRemoveUntil(
-                              LoginScreen.routeName,
-                                  (route) => false,
-                            );
+                            AppSession.signedOut(navigator.context);
                           }
 
                           if (fcmToken.isEmpty) {

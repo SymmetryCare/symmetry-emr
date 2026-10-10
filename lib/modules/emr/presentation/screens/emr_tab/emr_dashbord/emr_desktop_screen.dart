@@ -1,11 +1,13 @@
 import 'dart:async';
+import 'dart:html' as html;
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 
 import 'package:symmetry_emr/app/resources/color.dart';
-import 'package:symmetry_emr/app/services/tab_memory.dart';
+import 'package:symmetry_emr/app/router/emr_router.dart';
+import 'package:symmetry_emr/app/router/emr_routes.dart';
 import 'package:symmetry_emr/app/resources/font_manager.dart';
 import 'package:symmetry_emr/modules/emr/providers/hh_emr/visit_details_provider.dart';
 import 'package:symmetry_emr/app/resources/value_manager.dart';
@@ -294,7 +296,6 @@ class _PageBody extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       onPageChanged: (i) {
         tabCtrl.selectButton(i);
-        TabMemory.write(_EMRDesktopScreenState.tabMemoryKey, i); // restore on refresh
       },
       children: const [
         _KeepAlive(child: EMRDashboardScreen()),
@@ -388,17 +389,35 @@ class _OverlayState {
 // ─────────────────────────────────────────────────────────────────────────────
 // Main desktop screen
 // ─────────────────────────────────────────────────────────────────────────────
+/// The clinician desktop. Which page shows — and which patient and visit
+/// screens are open over it — is the URL's call ([location], from EmrRouter):
+/// the tabs change the URL and this follows it, so refresh, Back/Forward and
+/// a copied link land on the right page, and Back closes a patient screen
+/// before it leaves the page, as it always did.
 class EMRDesktopScreen extends StatefulWidget {
   final double screenWidth;
-  const EMRDesktopScreen({super.key, required this.screenWidth});
+
+  /// The page and open patient screens the URL names.
+  final EmrLocation location;
+
+  const EMRDesktopScreen({
+    super.key,
+    required this.screenWidth,
+    required this.location,
+  });
 
   @override
   State<EMRDesktopScreen> createState() => _EMRDesktopScreenState();
 }
 
 class _EMRDesktopScreenState extends State<EMRDesktopScreen> {
-  static const String tabMemoryKey = 'emr';
   late final PageController _pageController;
+  late final EMRNavigationController _nav;
+
+  /// History entries this screen added for patient screens it opened, so
+  /// closing one in the app can step back over its entry instead of leaving
+  /// a dead Back step behind.
+  int _overlayEntries = 0;
   final ButtonSelectionEMRController _tabCtrl =
   Get.put(ButtonSelectionEMRController());
   final GlobalKey<_NotifBadgeState> _badgeKey = GlobalKey<_NotifBadgeState>();
@@ -421,19 +440,141 @@ class _EMRDesktopScreenState extends State<EMRDesktopScreen> {
   @override
   void initState() {
     super.initState();
-    // Restore the last tab of this browser tab (survives refresh).
-    final initialTab =
-        TabMemory.read(tabMemoryKey, pageCount: _tabLabels.length);
-    _pageController = PageController(initialPage: initialTab);
-    _tabCtrl.selectButton(initialTab);
+    // Start on the page the URL names. Chat is a panel over the pages, which
+    // then start on the Dashboard under it.
+    final EmrPage page = widget.location.page;
+    _pageController = PageController(
+      initialPage: page == EmrPage.chat ? 0 : page.slot,
+    );
+    _tabCtrl.selectButton(page.slot);
+    _showChat.value = page == EmrPage.chat;
+    _nav = context.read<EMRNavigationController>();
+    _nav.addListener(_onOverlaysChanged);
     // Clears overlay/detail state only — the tab index is not touched here.
+    // A refresh lands here with the URL still naming the patient screens it
+    // was on; the patient is gone, so _onOverlaysChanged takes them off it.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<EMRNavigationController>().reset();
+      if (mounted) _nav.reset();
     });
   }
 
   @override
+  void didUpdateWidget(covariant EMRDesktopScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.location == oldWidget.location) return;
+    final EmrPage from = oldWidget.location.page;
+    // After the frame: it moves a PageController and notifies providers.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showLocation(from));
+  }
+
+  /// The patient and visit screens open now, bottom to top.
+  List<EmrOverlay> _openOverlays() => <EmrOverlay>[
+        if (_b(_nav.isScheduleVisit)) EmrOverlay.scheduledVisit,
+        if (_b(_nav.isViewingVisit)) EmrOverlay.visit,
+        if (_b(_nav.isViewingMap)) EmrOverlay.map,
+        if (_b(_nav.isViewingPatientDetail)) EmrOverlay.patient,
+        if (_b(_nav.isViewingPlanOfCare)) EmrOverlay.planOfCare,
+        if (_b(_nav.isViewingFrequencyDetail)) EmrOverlay.frequency,
+        if (_b(_nav.isViewingAlerts)) EmrOverlay.alerts,
+        if (_b(_nav.isViewingProtocol)) EmrOverlay.protocol,
+      ];
+
+  void _close(EmrOverlay overlay) {
+    switch (overlay) {
+      case EmrOverlay.scheduledVisit:
+        _nav.closeScheduleVisit();
+      case EmrOverlay.visit:
+        _nav.closeVisit();
+      case EmrOverlay.map:
+        _nav.closeMap();
+      case EmrOverlay.patient:
+        _nav.closePatientDetail();
+      case EmrOverlay.planOfCare:
+        _nav.closePlanOfCare();
+      case EmrOverlay.frequency:
+        _nav.closeFrequencyDetail();
+      case EmrOverlay.alerts:
+        _nav.closeAlerts();
+      case EmrOverlay.protocol:
+        _nav.closeProtocol();
+    }
+  }
+
+  static bool _startsWith(List<EmrOverlay> list, List<EmrOverlay> prefix) {
+    if (prefix.length > list.length) return false;
+    for (int i = 0; i < prefix.length; i++) {
+      if (list[i] != prefix[i]) return false;
+    }
+    return true;
+  }
+
+  /// A patient or visit screen opened or closed in the app: put it in the
+  /// URL. Opening one is a Back step, so Back closes it; closing one with
+  /// its own back button steps back over that entry.
+  void _onOverlaysChanged() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || widget.location.page == EmrPage.chat) return;
+      final List<EmrOverlay> open = _openOverlays();
+      final List<EmrOverlay> named = widget.location.overlays;
+      final EmrLocation now = widget.location.withOverlays(open);
+      if (now == widget.location) return;
+      if (open.length > named.length && _startsWith(open, named)) {
+        _overlayEntries++;
+        EmrRouter.open(context, now);
+      } else if (open.length + 1 == named.length &&
+          _startsWith(named, open) &&
+          _overlayEntries > 0) {
+        _overlayEntries--;
+        html.window.history.back();
+      } else {
+        EmrRouter.replace(context, now);
+      }
+    });
+  }
+
+  /// Show what the URL now names — after a tab tap, or browser Back/Forward.
+  void _showLocation(EmrPage from) {
+    if (!mounted) return;
+    final EmrLocation at = widget.location;
+    final List<EmrOverlay> open = _openOverlays();
+
+    if (at.page != from) {
+      // As every tab change always has.
+      context.read<FilterDrawerProvider>().clearFilters();
+      _showNotification.value = false;
+      _tabCtrl.selectButton(at.page.slot);
+      if (at.page == EmrPage.chat) {
+        _showChat.value = true;
+      } else {
+        _showChat.value = false;
+        if (_pageController.hasClients) _pageController.jumpToPage(at.page.slot);
+      }
+      if (open.isNotEmpty) {
+        // A page change under open patient screens: they belonged to the
+        // page being left.
+        _overlayEntries = 0;
+        _nav.reset();
+      }
+      return;
+    }
+
+    if (at.overlays.length < open.length && _startsWith(open, at.overlays)) {
+      // Back: close the screens the URL no longer names, top first.
+      if (_overlayEntries > 0) _overlayEntries--;
+      for (final EmrOverlay o in open.sublist(at.overlays.length).reversed) {
+        _close(o);
+      }
+    } else if (!_startsWith(open, at.overlays) ||
+        open.length != at.overlays.length) {
+      // Forward to a screen that was closed, or a refresh on one: the patient
+      // or visit it was opened with is gone. Show the URL of what is open.
+      EmrRouter.replace(context, at.withOverlays(open));
+    }
+  }
+
+  @override
   void dispose() {
+    _nav.removeListener(_onOverlaysChanged);
     _closeMenu();
     _pageController.dispose();
     _showChat.dispose();
@@ -442,15 +583,16 @@ class _EMRDesktopScreenState extends State<EMRDesktopScreen> {
     super.dispose();
   }
 
+  /// A tab (or Chat) was picked: go to its URL, a Back step like any
+  /// website. The page changes in [_showLocation]. Picking the page already
+  /// showing only clears the filters, as it always did.
   void _jumpTo(int index) {
-    context.read<FilterDrawerProvider>().clearFilters();
-    _tabCtrl.selectButton(index);
-    if (index == 4) {
-      _showChat.value = true;
-    } else {
-      _showChat.value = false;
-      _pageController.jumpToPage(index);
+    final EmrPage page = EmrPage.of(EmrDesktop.clinician, index);
+    if (page == widget.location.page) {
+      context.read<FilterDrawerProvider>().clearFilters();
+      return;
     }
+    EmrRouter.open(context, EmrLocation(page));
   }
 
   void _toggleNotification() {
@@ -618,31 +760,9 @@ class _EMRDesktopScreenState extends State<EMRDesktopScreen> {
         final anyOverlay = overlay.any;
         final nav = context.read<EMRNavigationController>();
 
-        return WillPopScope(
-          onWillPop: () async {
-            if (_showNotification.value) {
-              _showNotification.value = false;
-              return false;
-            }
-            if (_showChat.value) {
-              _showChat.value = false;
-              _tabCtrl.selectButton(0);
-              _pageController.jumpToPage(0);
-              return false;
-            }
-            if (overlay.isViewingProtocol)       { nav.closeProtocol();        return false; }
-            if (overlay.isViewingAlerts)          { nav.closeAlerts();          return false; }
-            if (overlay.isViewingFrequencyDetail) { nav.closeFrequencyDetail(); return false; }
-            if (overlay.isViewingPlanOfCare)      { nav.closePlanOfCare();      return false; }
-            if (overlay.isViewingPatientDetail)   { nav.closePatientDetail();   return false; }
-            if (overlay.isViewingMap)             { nav.closeMap();             return false; }
-            if (overlay.isViewingVisit)           { nav.closeVisit();           return false; }
-            if (overlay.isScheduleVisit)          { nav.closeScheduleVisit();   return false; }
-            final page = _pageController.page?.round() ?? 0;
-            if (page > 0) { _jumpTo(page - 1); return false; }
-            return true;
-          },
-          child: Scaffold(
+        // Browser Back is a URL change, which _showLocation follows: it closes
+        // the top patient screen first, then leaves the page.
+        return Scaffold(
             backgroundColor: Colors.white,
             body: Column(
               children: [
@@ -778,7 +898,6 @@ class _EMRDesktopScreenState extends State<EMRDesktopScreen> {
                 const BottomBarRow(),
               ],
             ),
-          ),
         );
       },
     );
