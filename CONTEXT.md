@@ -93,13 +93,14 @@ may not be deployed:
 
 ## How to run
 ```
-flutter run -d chrome --dart-define=API_ENDPOINT=https://greenvalley.symmetry.care/api --dart-define=APP_VERSION=standalone-dev
+flutter run -d chrome --dart-define=API_ENDPOINT=https://prohealth.symmetry.care/api --dart-define=APP_VERSION=standalone-dev
 ```
 
 ## Configuration / keys
 `API_ENDPOINT` / `APP_VERSION` via `--dart-define`. With no `API_ENDPOINT`
-the default is `https://greenvalley.symmetry.care/api` (the same default as
-symmetry-hr and the monolith). Non-secret runtime values in `config/emr.env`.
+the default is `https://prohealth.symmetry.care/api` (changed from
+greenvalley on 2026-10-30; symmetry-hr and the monolith still default to
+greenvalley). Non-secret runtime values in `config/emr.env`.
 `web/index.html` loads the Google Maps JS API (dashboard map, Calendar route
 map, address pickers) and PDF.js (document previews through `pdfx`).
 

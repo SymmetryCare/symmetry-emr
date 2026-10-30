@@ -2,6 +2,13 @@
 
 All notable changes to this repo. Newest first.
 
+## 2026-10-30 — Default API endpoint is now ProHealth
+
+With no `--dart-define=API_ENDPOINT`, the app now calls
+`https://prohealth.symmetry.care/api` instead of
+`https://greenvalley.symmetry.care/api` (`lib/app/constants/app_config.dart`).
+Builds that pass `API_ENDPOINT` are unaffected.
+
 ## 2026-09-29 — EMR extracted from the monolith as a runnable module app
 
 `symmetry-emr` is now the Home Health EMR lifted out of `Symmetry-Application-FE`

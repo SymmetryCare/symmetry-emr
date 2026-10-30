@@ -84,7 +84,7 @@ class AppConfig {
 
   static const String _rawEndpoint = String.fromEnvironment(
     'API_ENDPOINT',
-    defaultValue: 'https://greenvalley.symmetry.care/api',
+    defaultValue: 'https://prohealth.symmetry.care/api',
   );
 
   static const String version =
