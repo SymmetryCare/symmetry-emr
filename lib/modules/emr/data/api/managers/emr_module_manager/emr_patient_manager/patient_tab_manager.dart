@@ -172,7 +172,9 @@ Future<PatientFormEmrData?> getPatientFormEMR({
           status:        item['status'] ?? '',
           createdAt:     item['created_at'] ?? '',
           updatedAt:     item['updated_at'] ?? '',
-          visitDetails:  item['visitDetails'],
+          visitDetails:  item['visitDetails'] is Map
+              ? Map<String, dynamic>.from(item['visitDetails'])
+              : null,
           assignedTo:    assignedTo,
           statusHistory: statusHistory,
         );

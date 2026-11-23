@@ -46,6 +46,13 @@ class Question10019004 extends StatelessWidget {
           return Column(
             children: [
               const SizedBox(height: 40),
+              // Markers are one per wound: WoundScreen adds the next one
+              // when "Add New Wound" is pressed.
+              Text(
+                'Each wound has one marker. Use "Add New Wound" to get another.',
+                style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+              ),
+              const SizedBox(height: 10),
               Wrap(
                 spacing: 10,
                 runSpacing: 10,

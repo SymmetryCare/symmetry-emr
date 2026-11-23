@@ -31,7 +31,9 @@ class FormEMRData {
   final String status;
   final String createdAt;
   final String updatedAt;
-  final String? visitDetails;
+  /// The visit this form was created for, as the API sends it (an object:
+  /// disciplineId, fk_pt_id, typeOfVisitId …). Null when the form has none.
+  final Map<String, dynamic>? visitDetails;
   final List<AssignedTo> assignedTo;
   final List<StatusHistory> statusHistory;
 
